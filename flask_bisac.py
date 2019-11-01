@@ -163,6 +163,7 @@ def BMI():
                 return jsonify({"data":'saved'})
             return jsonify("cann't save!")
         else:
+#dhddxmckmvlknfgg kkklklgfcmb 
             return jsonify(currUser["BMI"])  
 
 @app.route('/Prursser', methods=['POST'])
