@@ -11,7 +11,6 @@ import pymongo,datetime,pprint
 app = Flask(__name__)
 app.config["DEBUG"] = True
 app.config['MONGO_DBNAME']='ssdb'
-#app.config['MONGO_URL']='mongodb+srv://ghida:<ghida>@cluster0-xskul.mongodb.net/test?retryWrites=true&w=majority&authSource=authDB'
 
 #mongo= pymongo.MongoClient()
 mongo = pymongo.MongoClient("mongodb+srv://ghida:ghida@cluster0-xskul.mongodb.net/ssdb?retryWrites=true&w=majority")
@@ -27,39 +26,31 @@ def index():
     
     return jsonify({"co":['hi data']})
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['POST'])  # fanish
 def login():
-        user=mongo.db.users
-        id=request.json('_id')
-
-        exis=user.find_one({'_id':id})
-        request.headers["Content-Type"]="application/json"
-        if exis:
-            if request.json('pass')== exis['pass']:
-                session['_id'] = request.json('_id')      
-
-            return jsonify(CONNCTION="login")
-        return jsonify("Invalid username and password combrnation!")
-    
-@app.route('/SingUp', methods=['POST'])
-def SingUp():
-#    if request.method=='POST':
         user=mongo.get_database('ssdb').get_collection('users')
-        print('hee;;;jjjjj')
-        print(request.data)
+        request.data=json.loads(request.data)
+        id= request.data["_id"]
+        exis=user.find_one({"_id":id})
+        #request.headers["Content-Type"]="application/json"
+        if exis:
+            if request.data['pass']== exis['pass']:
+                return jsonify({'mas':["log in"]})
+        return jsonify({'mas':["Invalid username and password combrnation!"]})
+#    return jsonify({'mas':[""]}) 
+    
+@app.route('/SingUp', methods=['POST'])  # fanish
+def SingUp():
+        user=mongo.get_database('ssdb').get_collection('users')
         request.data=json.loads(request.data)
         id= request.data["_id"]
         exis=user.find_one({'_id':id})
         if exis is None:
             print(id)
             user.insert({'_id':request.data['_id'],'lname':request.data['lname'],'fname':request.data['fname'],'gender':request.data['gender'],'type':request.data['type'],'dd':request.data['dd'],'bd':request.data['bd'],'pass':request.data['pass']})
-            # ._insert_one({'_id':request.json('_id'),'lname':request.json('lname'),'fname':request.json('fname'),'gender':request.json('gender'),'type':request.json('type'),'dd':request.json('dd'),'bd':request.json('bd'),'pass':request.json('pass')})
-            # session['_id'] = request.data['_id']       
             return jsonify({'mas':["SING up"]})
         return jsonify({'mas':["this emil is already exists!"]})
-#    return jsonify({"data":[ {"name": 'GHaida'}]})
 
-    
 @app.route('/Users', methods=['GET','PUT'])
 def Users():
    if request.method=='PUT':
@@ -90,119 +81,154 @@ def Users():
     for x in mongo.get_database('ssdb').get_collection('users').find():
         list.append(x)
     return json.dumps(list)
-   return jsonify({"data":[ {"name": 'GHaida'}]})
 
-
-@app.route('/Meals', methods=['GET','POST', 'PUT'])
+@app.route('/Meals', methods=['GET','POST', 'PUT'])  
 def Meals():
    meals=mongo.get_database('ssdb').get_collection('meals')
    request.data=json.loads(request.data)
    id= request.data["_id"]
    exis=meals.find_one({'_id':id})
    if request.method=='POST':
-        id= request.data["_id"]
-        exis=meals.find_one({'_id':id})
         if exis is None:       
-            meals.insert({"_id": id, "TotalCalor": request.data['TotalCalor']})
-
+            meals.insert({"_id": id, "TotalCalor": request.data['TotalCalor'],"TotalCarb":request.data['TotalCarb'],"type": request.data['type'],"date": request.data['date'],
+            "varoeties": request.data['varoeties'],"time": request.data['time']})
             return jsonify({'mas':["created"]})
-        return jsonify({'mas':["this emil is already exists!"]})
+        return jsonify({'mas':["this meal is already exists!"]})
+   
    elif request.method == 'PUT':
         meals.update_one({'_id':id},
             {
                 "$set": {
-                "TotalCalor": request.data['TotalCalor']
+                {"_id": id, "TotalCalor": request.data['TotalCalor'],"TotalCarb":request.data['TotalCarb'],"type": request.data['type'],"date": request.data['date'],
+                "time": request.data['time']}                },
+                "$push":{"varoeties":{request.data['varoeties']}
                 }
-            })
+            },upsert=True)
         return jsonify({'mas':["updated"]})
    else:
     list=[]
-    for x in mongo.get_database('ssdb').get_collection('meals').find():
+    for x in mongo.get_database('ssdb').get_collection('meals').find({"_id":id}):
         list.append(x)
     return json.dumps(list)
-   return jsonify({"data":[ {"name": 'GHaida'}]})
 
-
-
-@app.route('/blood', methods=['POST'])
+@app.route('/blood', methods=['POST','GET'])
 def blood():
-        user=mongo.db.users
-        id=request.json('_id')
-        time=request.json('time')
-        date=request.json('date')
-        exis=user.find_one({'_id':id,'blood':{'time':time,'date':date}})
-        if exis is None:
-            user.update_one({exis['_id']},{'$blood':request.json('blood')})
-            return jsonify(CONNCTION="seved")
-        return jsonify("cann't save!")    
 
-@app.route('/BMI', methods=['POST'])
+        user=mongo.get_database('ssdb').get_collection('users')
+        request.data=json.loads(request.data)
+        id= request.data["_id"]   
+        currUser = user.find_one({'_id':id})
+        if request.method=='POST':
+            date=request.data["blood"]["date"]
+
+            #dat=date{}
+            # print(dat)
+            time=request.data["blood"]["time"]
+
+            exis= None
+            for blood in currUser["blood"]: 
+                if(blood["time"] == time and blood["date"] == date):
+                    exis = True
+                    break
+            if exis is None:
+                if not currUser["blood"]:
+                    currUser["blood"] =  []
+                currUser["blood"].append(request.data['blood'])
+                user.update_one({"_id":id} , {"$set":{'blood': currUser["blood"]}})
+                return jsonify({"data":'saved'})
+            return jsonify("cann't save!")
+        else:
+            return jsonify(currUser["blood"])   
+            
+
+@app.route('/BMI', methods=['POST','GET'])
 def BMI():
-        user=mongo.db.users
-        id=request.json('_id')
-        time=request.json('time')
-        date=request.json('date')
-        exis=user.find_one({'_id':id,'BMI':{'time':time,'date':date}})
-        if exis is None:
-            user.update_one({exis['_id']},{'$BMI':request.json('BMI')})
-            return jsonify(CONNCTION="seved")
-        return jsonify("cann't save!")
+        user=mongo.get_database('ssdb').get_collection('users')
+        request.data=json.loads(request.data)
+        id= request.data["_id"]   
+        currUser = user.find_one({'_id':id})
+        if request.method=='POST':
+            date=request.data["BMI"]["date"]
+            time=request.data["BMI"]["time"]
+            exis= None
+            for blood in currUser["BMI"]: 
+                if(blood["time"] == time and blood["date"] == date):
+                    exis = True
+                    break
+            if exis is None:
+                if not currUser["BMI"]:
+                    currUser["BMI"] =  []
+                currUser["BMI"].append(request.data['BMI'])
+                user.update_one({"_id":id} , {"$set":{'BMI': currUser["BMI"]}})
+                return jsonify({"data":'saved'})
+            return jsonify("cann't save!")
+        else:
+            return jsonify(currUser["BMI"])  
 
 @app.route('/Prursser', methods=['POST'])
 def Prursser():
-        user=mongo.db.users
-        id=request.json('_id')
-        time=request.json('time')
-        date=request.json('date')
-        exis=user.find_one({'_id':id,'pressure':{'time':time,'date':date}})
-        if exis is None:
-            user.update_one({exis['_id']},{'$pressure':request.json('pressure')})
-            return jsonify("seved")
-        return jsonify("cann't save!")
+        user=mongo.get_database('ssdb').get_collection('users')
+        request.data=json.loads(request.data)
+        id= request.data["_id"]   
+        currUser = user.find_one({'_id':id})
+        if request.method=='POST':
+            date=request.data["pressure"]["date"]
 
-@app.route('/meals', methods=['GET', 'POST'])
-def Meals_old():
-    # print('request--hduewdhue')
-    # print(request.headers)
-    # return 'hi'
-    if request.method =='POST':
-        user=mongo.db.meals
-        id=request.json('_id')
-        exis=user.find_one({'_id':id,'type':request.json('type'),'date':request.json('date')})
-        if exis is None:
-            user._insert_one({'_id':request.json('_id'),'type':request.json('type'),'date':request.json('date'),'time':request.json('time'),'varoeties':request.json('varoeties'),'TotalCarb':request.json('TotalCarb'),'TotalCalor':request.json('TotalCalor')})
-            return jsonify("seved")
-        return jsonify("cann't save!")
-    else:
-              
-        return jsonify( 'hi')
+            #dat=date{}
+            # print(dat)
+            time=request.data["pressure"]["time"]
 
-@app.route('/variety', methods=['GET'])
+            exis= None
+            for blood in currUser["pressure"]: 
+                if(blood["time"] == time and blood["date"] == date):
+                    exis = True
+                    break
+            if exis is None:
+                if not currUser["pressure"]:
+                    currUser["pressure"] =  []
+                currUser["pressure"].append(request.data['pressure'])
+                user.update_one({"_id":id} , {"$set":{'pressure': currUser["pressure"]}})
+                return jsonify({"data":'saved'})
+            return jsonify("cann't save!")
+        else:
+            return jsonify(currUser["pressure"])  
+
+# @app.route('/meals', methods=['GET', 'POST'])
+# def Meals_old():
+
+#     if request.method =='POST':
+#         request.data=json.loads(request.data)
+#         user=mongo.get_database('ssdb').get_collection('meals')
+#         id=request.data('_id')
+#         exis=user.find_one({'_id':id,'type':request.json('type'),'date':request.data('date')})
+#         if exis is None:
+#             user._insert_one({'_id':request.json('_id'),'type':request.json('type'),'date':request.json('date'),'time':request.json('time'),'varoeties':request.json('varoeties'),'TotalCarb':request.json('TotalCarb'),'TotalCalor':request.json('TotalCalor')})
+#             return jsonify("seved")
+#         return jsonify("cann't save!")
+#     else:         
+#         return jsonify( 'hi')
+
+@app.route('/variety', methods=['GET']) # fanish
 def variety():
-    print('we;;ppp;')
-    #print(mongo.db.get_collection('variety').count_documents)
-    #print(mongo.get_database('ssdb').name)
-    print('-----;kkkkkk')
     list=[]
-#    if mongo.db.variety.count_documents({})>0:
     for x in mongo.get_database('ssdb').get_collection('variety').find():
         list.append(x)
     return json.dumps(list)
-#    return jsonify({'is none':[mongo.get_database('ssdb').get_collection('variety').find()]})
 
-@app.route('/Education', methods=['GET'])
+@app.route('/Education', methods=['GET']) # fanish
 def Education():
     list=[]
-    if mongo.db.Education.count_documents({})>0:
-        for x in mongo.db.Education.find():
-            list.append(x)
-        return json.dumps(list)
-    return jsonify({'is none':[mongo.db.Education.count_documents({})]})
+    for x in mongo.get_database('ssdb').get_collection('Education').find():
+        print(x)
+        list.append(x)
+    return json.dumps(list,default=str)
 
-@app.route('/med', methods=['GET'])
+@app.route('/med', methods=['GET'])# fanish
 def med():
-    user=mongo.db.med       
-    return jsonify( user.find({}))
+    list=[]
+    for x in mongo.get_database('ssdb').get_collection('med').find():
+        list.append(x)
+    return json.dumps(list)
 
 @app.route('/Actvitiy', methods=['POST'])
 def Actvitiy():
